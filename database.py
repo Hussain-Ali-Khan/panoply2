@@ -1,13 +1,17 @@
 from sqlalchemy import create_engine
+from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
+from dotenv import load_dotenv
 import os
 
-from models import Base  # ✅ Import Base from models.py
+# Load .env file
+load_dotenv()
 
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:Hussain30@localhost/hexa_bot")
+# Get the URL
+DATABASE_URL = os.getenv("DATABASE_URL")
 
-engine = create_engine(DATABASE_URL)
+# SQLAlchemy setup
+engine = create_engine(DATABASE_URL) # type: ignore
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-# ✅ Create tables if not already present
-Base.metadata.create_all(bind=engine)
+Base = declarative_base()
