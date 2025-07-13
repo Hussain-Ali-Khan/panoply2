@@ -9,7 +9,7 @@ import tempfile
 
 # ✅ Custom modules
 from gemini import generate_answer  # type: ignore
-from database import SessionLocal
+from database import SessionLocal # type: ignore
 from models import ChatHistory
 
 # ✅ Optional dependencies
