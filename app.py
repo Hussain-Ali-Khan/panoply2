@@ -2,12 +2,15 @@ from fastapi import FastAPI, Query, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.orm import Session
 from pydantic import BaseModel
 import os
 import tempfile
 
-# ✅ Gemini answer generator
+# ✅ Custom modules
 from gemini import generate_answer  # type: ignore
+from database import SessionLocal
+from models import ChatHistory
 
 # ✅ Optional dependencies
 try:
@@ -25,7 +28,7 @@ app = FastAPI(title="Hexa Bot API")
 # ✅ CORS setup
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Use ["http://localhost:8888"] for strict mode
+    allow_origins=["*"],  # Change for production if needed
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -34,7 +37,7 @@ app.add_middleware(
 # ✅ Template directory
 templates = Jinja2Templates(directory="templates")
 
-# ✅ In-memory search history
+# ✅ In-memory history
 search_history = []
 
 # ✅ Request Models
@@ -46,7 +49,7 @@ class SpeakRequest(BaseModel):
     text: str
     lang: str = "en"
 
-# ✅ Pre-warm Gemini (reduces cold start delay)
+# ✅ Pre-warm Gemini
 @app.on_event("startup")
 async def warm_up_gemini():
     generate_answer("Hello")
@@ -56,7 +59,6 @@ async def warm_up_gemini():
 async def serve_homepage(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
 
-# ✅ Suppress favicon errors
 @app.get("/favicon.ico")
 async def favicon():
     return ""
@@ -89,14 +91,46 @@ def speak_text(req: SpeakRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Speech failed: {str(e)}")
 
-# ✅ Ask Gemini (main logic)
+# ✅ Ask Gemini and store in DB
 @app.get("/ask-gemini")
 def ask_gemini_endpoint(q: str):
-    search_history.append(q)
     answer = generate_answer(q)
+    
+    # Save to PostgreSQL
+    db: Session = SessionLocal()
+    try:
+        chat = ChatHistory(question=q, answer=answer)
+        db.add(chat)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to save chat to database.")
+    finally:
+        db.close()
+
+    # Also store in memory
+    search_history.append(q)
+
     return {"answer": answer}
 
-# ✅ View search history
+# ✅ In-memory history for frontend display
 @app.get("/history")
 def get_history():
     return {"history": list(reversed(search_history))}
+
+# ✅ DB-backed chat history
+@app.get("/db-history")
+def get_db_history():
+    db: Session = SessionLocal()
+    try:
+        records = db.query(ChatHistory).order_by(ChatHistory.created_at.desc()).limit(10).all()
+        return [
+            {
+                "id": r.id,
+                "question": r.question,
+                "answer": r.answer,
+                "timestamp": r.created_at
+            } for r in records
+        ]
+    finally:
+        db.close()
