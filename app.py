@@ -9,8 +9,8 @@ import tempfile
 
 # ✅ Custom modules
 from gemini import generate_answer  # type: ignore
-from database import SessionLocal # type: ignore
-from models import ChatHistory
+from database import SessionLocal, engine  # Add engine here
+from models import ChatHistory, Base      # Add Base here to allow table creation
 
 # ✅ Optional dependencies
 try:
@@ -28,7 +28,7 @@ app = FastAPI(title="Hexa Bot API")
 # ✅ CORS setup
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Change for production if needed
+    allow_origins=["*"],  # Change for production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -49,10 +49,14 @@ class SpeakRequest(BaseModel):
     text: str
     lang: str = "en"
 
-# ✅ Pre-warm Gemini
+# ✅ Pre-warm Gemini and create tables
 @app.on_event("startup")
 async def warm_up_gemini():
-    generate_answer("Hello")
+    try:
+        generate_answer("Hello")
+        Base.metadata.create_all(bind=engine)
+    except Exception as e:
+        print(f"Startup failed: {e}")
 
 # ✅ Homepage
 @app.get("/", response_class=HTMLResponse)
@@ -94,9 +98,11 @@ def speak_text(req: SpeakRequest):
 # ✅ Ask Gemini and store in DB
 @app.get("/ask-gemini")
 def ask_gemini_endpoint(q: str):
-    answer = generate_answer(q)
-    
-    # Save to PostgreSQL
+    try:
+        answer = generate_answer(q)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Gemini error: {e}")
+
     db: Session = SessionLocal()
     try:
         chat = ChatHistory(question=q, answer=answer)
@@ -104,16 +110,14 @@ def ask_gemini_endpoint(q: str):
         db.commit()
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail="Failed to save chat to database.")
+        raise HTTPException(status_code=500, detail=f"DB error: {e}")
     finally:
         db.close()
 
-    # Also store in memory
     search_history.append(q)
-
     return {"answer": answer}
 
-# ✅ In-memory history for frontend display
+# ✅ In-memory history
 @app.get("/history")
 def get_history():
     return {"history": list(reversed(search_history))}
