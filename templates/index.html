@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Hexa Bot - Perplexity Style</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script> <!-- ✅ Markdown parser -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script> <!-- Markdown parser -->
   <style>
     body {
       background-color: #0f172a;
@@ -17,15 +17,22 @@
       backdrop-filter: blur(12px);
       border: 1px solid rgba(255, 255, 255, 0.1);
     }
+    strong {
+      font-weight: bold;
+      color: #f9fafb;
+    }
+    em {
+      font-style: italic;
+      color: #f9fafb;
+    }
   </style>
 </head>
 <body class="min-h-screen flex flex-col items-center justify-start p-6">
   <div class="w-full max-w-4xl">
     <h1 class="text-4xl font-bold mb-6 text-center text-white">Hexa Bot</h1>
     <div class="text-center mb-4">
-  <a href="/history-page" class="text-indigo-400 underline hover:text-indigo-300">View Chat History</a>
-</div>
-
+      <a href="/history-page" class="text-indigo-400 underline hover:text-indigo-300">View Chat History</a>
+    </div>
 
     <div class="glass rounded-xl p-6 shadow-lg">
       <label class="block text-sm font-medium text-gray-300">Ask me anything:</label>
@@ -60,6 +67,14 @@
   <script>
     const apiBase = '';
 
+    // ✅ Configure marked to allow HTML + line breaks
+    marked.use({
+      breaks: true,
+      gfm: true,
+      mangle: false,
+      headerIds: false
+    });
+
     async function askBot() {
       const query = document.getElementById('query').value;
       const resBox = document.getElementById('responseBox');
@@ -67,10 +82,7 @@
       try {
         const res = await fetch(`${apiBase}/ask-gemini?q=${encodeURIComponent(query)}`);
         const data = await res.json();
-
-        // ✅ Convert Markdown to HTML before rendering
         resBox.innerHTML = marked.parse(data.answer || data.error || 'No response');
-
         fetchHistory();
       } catch (err) {
         resBox.textContent = 'Error fetching response';
