@@ -138,3 +138,13 @@ def get_db_history():
         ]
     finally:
         db.close()
+
+# ✅ Render HTML view of DB chat history
+@app.get("/history-page", response_class=HTMLResponse)
+def history_page(request: Request):
+    db: Session = SessionLocal()
+    try:
+        records = db.query(ChatHistory).order_by(ChatHistory.created_at.desc()).limit(10).all()
+        return templates.TemplateResponse("history.html", {"request": request, "records": records})
+    finally:
+        db.close()
