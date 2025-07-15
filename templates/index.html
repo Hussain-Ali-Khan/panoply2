@@ -43,7 +43,7 @@
                 class="bg-indigo-600 text-white px-6 py-2 rounded-r-md hover:bg-indigo-500">Ask</button>
       </div>
 
-      <div id="responseBox" class="mt-6 text-lg text-gray-200"></div>
+      <div id="responseBox" class="mt-6 text-lg text-gray-200 whitespace-pre-wrap"></div>
 
       <div class="mt-4 flex space-x-4">
         <button onclick="translateText()" class="bg-teal-600 px-4 py-2 rounded hover:bg-teal-500">Translate</button>
@@ -94,20 +94,20 @@
       const lang = document.getElementById('lang').value;
 
       try {
-        const res = await fetch(`${apiBase}/speak`, {
+        const response = await fetch(`${apiBase}/speak`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ text, lang })
         });
 
-        if (!res.ok) throw new Error('Speech API failed');
+        if (!response.ok) throw new Error('Speech API failed');
 
-        const blob = await res.blob();
-        const audioUrl = URL.createObjectURL(blob);
+        const audioBlob = await response.blob();
+        const audioUrl = URL.createObjectURL(audioBlob);
         const audio = new Audio(audioUrl);
         audio.play();
       } catch (err) {
-        alert('Speech failed');
+        alert('Speech failed: ' + err.message);
       }
     }
 
@@ -118,15 +118,19 @@
     }
 
     async function fetchHistory() {
-      const res = await fetch(`${apiBase}/history`);
-      const data = await res.json();
-      const historyList = document.getElementById('historyList');
-      historyList.innerHTML = '';
-      data.history.forEach(item => {
-        const li = document.createElement('li');
-        li.textContent = item;
-        historyList.appendChild(li);
-      });
+      try {
+        const res = await fetch(`${apiBase}/history`);
+        const data = await res.json();
+        const historyList = document.getElementById('historyList');
+        historyList.innerHTML = '';
+        data.history.forEach(item => {
+          const li = document.createElement('li');
+          li.textContent = item;
+          historyList.appendChild(li);
+        });
+      } catch (e) {
+        console.error('Failed to load history');
+      }
     }
 
     window.onload = fetchHistory;
