@@ -9,7 +9,6 @@ import tempfile
 import requests
 from io import BytesIO
 
-# Custom modules
 from gemini import generate_answer  # type: ignore
 from database import SessionLocal, engine
 from models import ChatHistory, Base
@@ -22,7 +21,6 @@ except ImportError:
 
 app = FastAPI(title="Hexa Bot API")
 
-# CORS setup
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -31,8 +29,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-templates = Jinja2Templates(directory="templates")
+templates = Jinja2Templates(directory=os.getenv("TEMPLATE_DIR", "templates"))
+
 search_history = []
+
+ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
+ELEVENLABS_VOICE_ID = "Rachel"  # Can be changed to another voice
 
 class TranslateRequest(BaseModel):
     text: str
@@ -43,7 +45,7 @@ class SpeakRequest(BaseModel):
     lang: str = "en"
 
 @app.on_event("startup")
-async def warm_up_gemini():
+async def warm_up():
     try:
         generate_answer("Hello")
         Base.metadata.create_all(bind=engine)
@@ -71,34 +73,29 @@ def translate_text(req: TranslateRequest):
 
 @app.post("/speak")
 def speak_text(req: SpeakRequest):
-    api_key = os.getenv("ELEVENLABS_API_KEY")
-    if not api_key:
-        raise HTTPException(status_code=500, detail="Missing ElevenLabs API key.")
-
-    voice_id = "Rachel"  # Default voice ID
-    url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
-
-    headers = {
-        "xi-api-key": api_key,
-        "Content-Type": "application/json"
-    }
-
-    payload = {
-        "text": req.text,
-        "model_id": "eleven_monolingual_v1",
-        "voice_settings": {
-            "stability": 0.5,
-            "similarity_boost": 0.75
-        }
-    }
-
+    if not ELEVENLABS_API_KEY:
+        raise HTTPException(status_code=503, detail="ElevenLabs API key not configured")
     try:
-        response = requests.post(url, json=payload, headers=headers)
+        url = f"https://api.elevenlabs.io/v1/text-to-speech/{ELEVENLABS_VOICE_ID}"
+        headers = {
+            "xi-api-key": ELEVENLABS_API_KEY,
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "text": req.text,
+            "model_id": "eleven_monolingual_v1",
+            "voice_settings": {
+                "stability": 0.4,
+                "similarity_boost": 0.75
+            }
+        }
+        response = requests.post(url, headers=headers, json=payload)
         if response.status_code != 200:
-            raise HTTPException(status_code=500, detail="ElevenLabs TTS failed.")
-        return StreamingResponse(BytesIO(response.content), media_type="audio/mpeg")
+            raise HTTPException(status_code=500, detail=f"ElevenLabs error: {response.text}")
+        audio_stream = BytesIO(response.content)
+        return StreamingResponse(audio_stream, media_type="audio/mpeg")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Speech synthesis failed: {str(e)}")
 
 @app.get("/ask-gemini")
 def ask_gemini_endpoint(q: str):

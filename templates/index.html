@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Hexa Bot - Perplexity Style</title>
+  <title>Hexa Bot</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <style>
@@ -43,7 +43,7 @@
                 class="bg-indigo-600 text-white px-6 py-2 rounded-r-md hover:bg-indigo-500">Ask</button>
       </div>
 
-      <div id="responseBox" class="mt-6 text-lg text-gray-200 whitespace-pre-wrap"></div>
+      <div id="responseBox" class="mt-6 text-lg text-gray-200"></div>
 
       <div class="mt-4 flex space-x-4">
         <button onclick="translateText()" class="bg-teal-600 px-4 py-2 rounded hover:bg-teal-500">Translate</button>
@@ -80,7 +80,7 @@
         const res = await fetch(`${apiBase}/translate`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: text, target_lang: lang })
+          body: JSON.stringify({ text, target_lang: lang })
         });
         const data = await res.json();
         document.getElementById('responseBox').textContent = data.translated_text;
@@ -92,6 +92,7 @@
     async function speakText() {
       const text = document.getElementById('responseBox').textContent;
       const lang = document.getElementById('lang').value;
+
       try {
         const res = await fetch(`${apiBase}/speak`, {
           method: 'POST',
@@ -99,9 +100,11 @@
           body: JSON.stringify({ text, lang })
         });
 
+        if (!res.ok) throw new Error('Speech API failed');
+
         const blob = await res.blob();
-        const audioURL = URL.createObjectURL(blob);
-        const audio = new Audio(audioURL);
+        const audioUrl = URL.createObjectURL(blob);
+        const audio = new Audio(audioUrl);
         audio.play();
       } catch (err) {
         alert('Speech failed');
