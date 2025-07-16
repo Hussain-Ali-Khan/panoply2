@@ -3,24 +3,134 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Chat History</title>
+  <title>Hexa Bot</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <style>
+    body {
+      background-color: #0f172a;
+      color: #e2e8f0;
+      font-family: 'Inter', sans-serif;
+    }
+    .glass {
+      background: rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+  </style>
 </head>
-<body class="bg-gray-900 text-gray-100 p-6 font-sans">
-  <div class="max-w-4xl mx-auto">
-    <h1 class="text-3xl font-bold mb-6 text-center">Hexa Bot - Chat History</h1>
-    <div class="space-y-4">
-      {% for record in records %}
-        <div class="bg-gray-800 p-4 rounded-lg shadow">
-          <p class="text-sm text-gray-400">#{{ record.id }} — {{ record.timestamp }}</p>
-          <p class="mt-2"><strong>Q:</strong> {{ record.question }}</p>
-          <p><strong>A:</strong> {{ record.answer }}</p>
-        </div>
-      {% endfor %}
+<body class="min-h-screen flex flex-col items-center justify-start p-6">
+  <div class="w-full max-w-4xl">
+    <h1 class="text-4xl font-bold mb-6 text-center text-white">Hexa Bot</h1>
+    <div class="text-center mb-4">
+      <a href="/history-page" class="text-indigo-400 underline hover:text-indigo-300">View Chat History</a>
     </div>
-    <div class="mt-6 text-center">
-      <a href="/" class="text-blue-400 hover:underline">⬅ Back to Hexa Bot</a>
+
+    <div class="glass rounded-xl p-6 shadow-lg">
+      <label class="block text-sm font-medium text-gray-300">Ask me anything:</label>
+      <div class="flex mt-2">
+        <input id="query" type="text" placeholder="e.g. What is FastAPI?"
+               class="flex-1 p-3 rounded-l-md bg-gray-800 text-white border-none focus:ring-2 focus:ring-indigo-500" />
+        <select id="lang" class="bg-gray-800 text-white px-4">
+          <option value="en">English</option>
+          <option value="hi">Hindi</option>
+          <option value="te">Telugu</option>
+          <option value="mr">Marathi</option>
+          <option value="bn">Bengali</option>
+          <option value="kn">Kannada</option>
+          <option value="ta">Tamil</option>
+          <option value="es">Spanish</option>
+          <option value="fr">French</option>
+          <option value="de">German</option>
+        </select>
+        <button onclick="askBot()"
+                class="bg-indigo-600 text-white px-6 py-2 rounded-r-md hover:bg-indigo-500">Ask</button>
+      </div>
+
+      <div id="responseBox" class="mt-6 text-lg text-gray-200"></div>
+
+      <div class="mt-4 flex space-x-4">
+        <button onclick="translateText()" class="bg-teal-600 px-4 py-2 rounded hover:bg-teal-500">Translate</button>
+        <button onclick="speakText()" class="bg-yellow-600 px-4 py-2 rounded hover:bg-yellow-500">Speak</button>
+        <button onclick="viewWikipedia()" class="bg-pink-600 px-4 py-2 rounded hover:bg-pink-500">Wikipedia</button>
+      </div>
+
+      <h2 class="mt-8 text-lg font-semibold text-gray-300">Search History</h2>
+      <ul id="historyList" class="list-disc list-inside text-gray-400 mt-2"></ul>
     </div>
   </div>
+
+  <script>
+    const apiBase = '';
+
+    async function askBot() {
+      const query = document.getElementById('query').value;
+      const resBox = document.getElementById('responseBox');
+      resBox.textContent = 'Loading...';
+      try {
+        const res = await fetch(`${apiBase}/ask-gemini?q=${encodeURIComponent(query)}`);
+        const data = await res.json();
+        resBox.innerHTML = marked.parse(data.answer || data.error || 'No response');
+        fetchHistory();
+      } catch (err) {
+        resBox.textContent = 'Error fetching response';
+      }
+    }
+
+    async function translateText() {
+      const text = document.getElementById('responseBox').innerText;
+      const lang = document.getElementById('lang').value;
+      try {
+        const res = await fetch(`${apiBase}/translate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text, target_lang: lang })
+        });
+        const data = await res.json();
+        document.getElementById('responseBox').textContent = data.translated_text;
+      } catch (err) {
+        alert('Translation failed');
+      }
+    }
+
+    async function speakText() {
+      const text = document.getElementById('responseBox').innerText;
+      const lang = document.getElementById('lang').value;
+      try {
+        const res = await fetch(`${apiBase}/speak`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text, lang })
+        });
+        if (!res.ok) throw new Error('Speech API failed');
+        const blob = await res.blob();
+        const audioUrl = URL.createObjectURL(blob);
+        const audio = new Audio(audioUrl);
+        audio.play();
+      } catch (err) {
+        alert('Speech failed');
+      }
+    }
+
+    function viewWikipedia() {
+      const query = document.getElementById('query').value;
+      const url = `https://en.wikipedia.org/wiki/${encodeURIComponent(query.replace(/ /g, '_'))}`;
+      window.open(url, '_blank');
+    }
+
+    async function fetchHistory() {
+      const res = await fetch(`${apiBase}/history`);
+      const data = await res.json();
+      const historyList = document.getElementById('historyList');
+      historyList.innerHTML = '';
+      data.history.forEach(item => {
+        const li = document.createElement('li');
+        li.textContent = item;
+        historyList.appendChild(li);
+      });
+    }
+
+    window.onload = fetchHistory;
+  </script>
 </body>
 </html>
