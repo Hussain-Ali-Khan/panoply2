@@ -71,27 +71,36 @@ def translate_text(req: TranslateRequest):
 def speak_text(req: SpeakRequest):
     if not ELEVENLABS_API_KEY:
         raise HTTPException(status_code=503, detail="ElevenLabs API key not configured")
+
     try:
-        url = f"https://api.elevenlabs.io/v1/text-to-speech/{ELEVENLABS_VOICE_ID}"
+        url = f"https://api.elevenlabs.io/v1/text-to-speech/{ELEVENLABS_VOICE_ID}/stream"
         headers = {
             "xi-api-key": ELEVENLABS_API_KEY,
             "Content-Type": "application/json"
         }
         payload = {
             "text": req.text,
-            "model_id": "eleven_monolingual_v1",
+            "model_id": "eleven_multilingual_v2",
             "voice_settings": {
-                "stability": 0.4,
+                "stability": 0.5,
                 "similarity_boost": 0.75
             }
         }
+
+        print(f"[DEBUG] Making request to ElevenLabs with: {payload}")
         response = requests.post(url, headers=headers, json=payload)
+
         if response.status_code != 200:
+            print(f"[ERROR] ElevenLabs failed: {response.status_code}, {response.text}")
             raise HTTPException(status_code=500, detail=f"ElevenLabs error: {response.text}")
+
         audio_stream = BytesIO(response.content)
         return StreamingResponse(audio_stream, media_type="audio/mpeg")
+
     except Exception as e:
+        print(f"[EXCEPTION] Error in ElevenLabs API: {e}")
         raise HTTPException(status_code=500, detail=f"Speech synthesis failed: {str(e)}")
+
 
 # ✅ Ask Gemini endpoint
 @app.get("/ask-gemini")
