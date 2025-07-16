@@ -29,7 +29,7 @@ templates = Jinja2Templates(directory=os.getenv("TEMPLATE_DIR", "templates"))
 search_history = []
 
 ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
-ELEVENLABS_VOICE_ID = "Rachel"
+ELEVENLABS_VOICE_ID = "EXAVITQu4vr4xnSDxMaL"  # Rachel's actual ID
 
 # ✅ Request Models
 class TranslateRequest(BaseModel):
