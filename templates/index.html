@@ -34,6 +34,10 @@
         <select id="lang" class="bg-gray-800 text-white px-4">
           <option value="en">English</option>
           <option value="hi">Hindi</option>
+          <option value="te">Telugu</option>
+          <option value="mr">Marathi</option>
+          <option value="bn">Bengali</option>
+          <option value="kn">Kannada</option>
           <option value="ta">Tamil</option>
           <option value="es">Spanish</option>
           <option value="fr">French</option>
@@ -43,7 +47,7 @@
                 class="bg-indigo-600 text-white px-6 py-2 rounded-r-md hover:bg-indigo-500">Ask</button>
       </div>
 
-      <div id="responseBox" class="mt-6 text-lg text-gray-200 whitespace-pre-wrap"></div>
+      <div id="responseBox" class="mt-6 text-lg text-gray-200"></div>
 
       <div class="mt-4 flex space-x-4">
         <button onclick="translateText()" class="bg-teal-600 px-4 py-2 rounded hover:bg-teal-500">Translate</button>
@@ -74,13 +78,13 @@
     }
 
     async function translateText() {
-      const text = document.getElementById('responseBox').textContent;
+      const text = document.getElementById('responseBox').innerText; // ← This is important
       const lang = document.getElementById('lang').value;
       try {
         const res = await fetch(`${apiBase}/translate`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text, target_lang: lang })
+          body: JSON.stringify({ text: text, target_lang: lang })
         });
         const data = await res.json();
         document.getElementById('responseBox').textContent = data.translated_text;
@@ -90,24 +94,21 @@
     }
 
     async function speakText() {
-      const text = document.getElementById('responseBox').textContent;
+      const text = document.getElementById('responseBox').innerText;
       const lang = document.getElementById('lang').value;
-
       try {
-        const response = await fetch(`${apiBase}/speak`, {
+        const res = await fetch(`${apiBase}/speak`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ text, lang })
         });
-
-        if (!response.ok) throw new Error('Speech API failed');
-
-        const audioBlob = await response.blob();
-        const audioUrl = URL.createObjectURL(audioBlob);
+        if (!res.ok) throw new Error('Speech API failed');
+        const blob = await res.blob();
+        const audioUrl = URL.createObjectURL(blob);
         const audio = new Audio(audioUrl);
         audio.play();
       } catch (err) {
-        alert('Speech failed: ' + err.message);
+        alert('Speech failed');
       }
     }
 
@@ -118,19 +119,15 @@
     }
 
     async function fetchHistory() {
-      try {
-        const res = await fetch(`${apiBase}/history`);
-        const data = await res.json();
-        const historyList = document.getElementById('historyList');
-        historyList.innerHTML = '';
-        data.history.forEach(item => {
-          const li = document.createElement('li');
-          li.textContent = item;
-          historyList.appendChild(li);
-        });
-      } catch (e) {
-        console.error('Failed to load history');
-      }
+      const res = await fetch(`${apiBase}/history`);
+      const data = await res.json();
+      const historyList = document.getElementById('historyList');
+      historyList.innerHTML = '';
+      data.history.forEach(item => {
+        const li = document.createElement('li');
+        li.textContent = item;
+        historyList.appendChild(li);
+      });
     }
 
     window.onload = fetchHistory;

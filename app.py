@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 import os
+import tempfile
 import requests
 from io import BytesIO
 
@@ -12,16 +13,14 @@ from gemini import generate_answer  # type: ignore
 from database import SessionLocal, engine
 from models import ChatHistory, Base
 
-# Optional translation support
+# ✅ Translation module
 try:
     from googletrans import Translator
 except ImportError:
     Translator = None
 
-# Initialize FastAPI app
 app = FastAPI(title="Hexa Bot API")
 
-# Enable CORS (allow frontend requests)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -30,17 +29,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Template rendering
 templates = Jinja2Templates(directory=os.getenv("TEMPLATE_DIR", "templates"))
 
-# In-memory search history
 search_history = []
 
-# ElevenLabs config
-ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
-ELEVENLABS_VOICE_ID = "21m00Tcm4TlvDq8ikWAM"  # Rachel (default ElevenLabs voice)
-
-# Request schemas
+# ✅ Request Models
 class TranslateRequest(BaseModel):
     text: str
     target_lang: str
@@ -49,7 +42,7 @@ class SpeakRequest(BaseModel):
     text: str
     lang: str = "en"
 
-# App startup: warm up Gemini + create DB tables
+# ✅ Startup
 @app.on_event("startup")
 async def warm_up():
     try:
@@ -58,7 +51,6 @@ async def warm_up():
     except Exception as e:
         print(f"Startup failed: {e}")
 
-# Homepage
 @app.get("/", response_class=HTMLResponse)
 async def serve_homepage(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
@@ -67,7 +59,7 @@ async def serve_homepage(request: Request):
 async def favicon():
     return ""
 
-# Translation
+# ✅ Translate endpoint
 @app.post("/translate")
 def translate_text(req: TranslateRequest):
     if not Translator:
@@ -79,36 +71,7 @@ def translate_text(req: TranslateRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Translation failed: {str(e)}")
 
-# ElevenLabs Text-to-Speech (streaming for instant audio)
-@app.post("/speak")
-def speak_text(req: SpeakRequest):
-    if not ELEVENLABS_API_KEY:
-        raise HTTPException(status_code=503, detail="ElevenLabs API key not configured")
-
-    try:
-        url = f"https://api.elevenlabs.io/v1/text-to-speech/{ELEVENLABS_VOICE_ID}/stream"
-        headers = {
-            "xi-api-key": ELEVENLABS_API_KEY,
-            "Content-Type": "application/json"
-        }
-        payload = {
-            "text": req.text,
-            "model_id": "eleven_monolingual_v1",
-            "voice_settings": {
-                "stability": 0.4,
-                "similarity_boost": 0.75
-            }
-        }
-        response = requests.post(url, headers=headers, json=payload, stream=True)
-        if response.status_code != 200:
-            raise HTTPException(status_code=500, detail=f"ElevenLabs error: {response.text}")
-
-        return StreamingResponse(response.raw, media_type="audio/mpeg")
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Speech synthesis failed: {str(e)}")
-
-# Gemini response + store in DB
+# ✅ Ask Gemini endpoint
 @app.get("/ask-gemini")
 def ask_gemini_endpoint(q: str):
     try:
@@ -130,12 +93,10 @@ def ask_gemini_endpoint(q: str):
     search_history.append(q)
     return {"answer": answer}
 
-# In-memory history
 @app.get("/history")
 def get_history():
     return {"history": list(reversed(search_history))}
 
-# DB-based chat history
 @app.get("/db-history")
 def get_db_history():
     db: Session = SessionLocal()
@@ -152,7 +113,6 @@ def get_db_history():
     finally:
         db.close()
 
-# HTML-rendered chat history page
 @app.get("/history-page", response_class=HTMLResponse)
 def history_page(request: Request):
     db: Session = SessionLocal()
