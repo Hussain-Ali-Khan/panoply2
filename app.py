@@ -13,11 +13,8 @@ from gemini import generate_answer  # type: ignore
 from database import SessionLocal, engine
 from models import ChatHistory, Base
 
-# ✅ Translation module
-try:
-    from googletrans import Translator
-except ImportError:
-    Translator = None
+# ✅ Translation module using deep-translator
+from deep_translator import GoogleTranslator
 
 app = FastAPI(title="Hexa Bot API")
 
@@ -42,7 +39,6 @@ class SpeakRequest(BaseModel):
     text: str
     lang: str = "en"
 
-# ✅ Startup
 @app.on_event("startup")
 async def warm_up():
     try:
@@ -59,19 +55,15 @@ async def serve_homepage(request: Request):
 async def favicon():
     return ""
 
-# ✅ Translate endpoint
+# ✅ Translate using deep-translator
 @app.post("/translate")
 def translate_text(req: TranslateRequest):
-    if not Translator:
-        raise HTTPException(status_code=503, detail="Translation module not available.")
     try:
-        translator = Translator()
-        translated = translator.translate(req.text, dest=req.target_lang)
-        return {"translated_text": translated.text}
+        translated = GoogleTranslator(source='auto', target=req.target_lang).translate(req.text)
+        return {"translated_text": translated}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Translation failed: {str(e)}")
 
-# ✅ Ask Gemini endpoint
 @app.get("/ask-gemini")
 def ask_gemini_endpoint(q: str):
     try:
