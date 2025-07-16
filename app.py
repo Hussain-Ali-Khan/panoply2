@@ -12,8 +12,6 @@ from io import BytesIO
 from gemini import generate_answer  # type: ignore
 from database import SessionLocal, engine
 from models import ChatHistory, Base
-
-# ✅ Translation module using deep-translator
 from deep_translator import GoogleTranslator
 
 app = FastAPI(title="Hexa Bot API")
@@ -30,6 +28,9 @@ templates = Jinja2Templates(directory=os.getenv("TEMPLATE_DIR", "templates"))
 
 search_history = []
 
+ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
+ELEVENLABS_VOICE_ID = "Rachel"
+
 # ✅ Request Models
 class TranslateRequest(BaseModel):
     text: str
@@ -39,6 +40,7 @@ class SpeakRequest(BaseModel):
     text: str
     lang: str = "en"
 
+# ✅ Startup
 @app.on_event("startup")
 async def warm_up():
     try:
@@ -55,7 +57,7 @@ async def serve_homepage(request: Request):
 async def favicon():
     return ""
 
-# ✅ Translate using deep-translator
+# ✅ Translate endpoint
 @app.post("/translate")
 def translate_text(req: TranslateRequest):
     try:
@@ -64,6 +66,34 @@ def translate_text(req: TranslateRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Translation failed: {str(e)}")
 
+# ✅ ElevenLabs speech synthesis
+@app.post("/speak")
+def speak_text(req: SpeakRequest):
+    if not ELEVENLABS_API_KEY:
+        raise HTTPException(status_code=503, detail="ElevenLabs API key not configured")
+    try:
+        url = f"https://api.elevenlabs.io/v1/text-to-speech/{ELEVENLABS_VOICE_ID}"
+        headers = {
+            "xi-api-key": ELEVENLABS_API_KEY,
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "text": req.text,
+            "model_id": "eleven_monolingual_v1",
+            "voice_settings": {
+                "stability": 0.4,
+                "similarity_boost": 0.75
+            }
+        }
+        response = requests.post(url, headers=headers, json=payload)
+        if response.status_code != 200:
+            raise HTTPException(status_code=500, detail=f"ElevenLabs error: {response.text}")
+        audio_stream = BytesIO(response.content)
+        return StreamingResponse(audio_stream, media_type="audio/mpeg")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Speech synthesis failed: {str(e)}")
+
+# ✅ Ask Gemini endpoint
 @app.get("/ask-gemini")
 def ask_gemini_endpoint(q: str):
     try:
