@@ -78,20 +78,21 @@
     }
 
     async function translateText() {
-      const text = document.getElementById('responseBox').innerText; // ← This is important
-      const lang = document.getElementById('lang').value;
-      try {
-        const res = await fetch(`${apiBase}/translate`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: text, target_lang: lang })
-        });
-        const data = await res.json();
-        document.getElementById('responseBox').textContent = data.translated_text;
-      } catch (err) {
-        alert('Translation failed');
-      }
-    }
+  const text = document.getElementById('responseBox').innerText; 
+  const lang = document.getElementById('lang').value;
+  try {
+    const res = await fetch(`${apiBase}/translate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: text, target_lang: lang })
+    });
+    const data = await res.json();
+    document.getElementById('responseBox').innerHTML = marked.parse(data.translated_text);
+  } catch (err) {
+    alert('Translation failed');
+  }
+}
+
 
     async function speakText() {
       const text = document.getElementById('responseBox').innerText;
