@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Hexa Bot</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <style>
     body {
       background-color: #0f172a;
@@ -47,7 +46,8 @@
                 class="bg-indigo-600 text-white px-6 py-2 rounded-r-md hover:bg-indigo-500">Ask</button>
       </div>
 
-      <div id="responseBox" class="mt-6 text-lg text-gray-200"></div>
+      <!-- Response Box -->
+      <div id="responseBox" class="mt-6 text-lg text-gray-200 whitespace-pre-line"></div>
 
       <div class="mt-4 flex space-x-4">
         <button onclick="translateText()" class="bg-teal-600 px-4 py-2 rounded hover:bg-teal-500">Translate</button>
@@ -66,33 +66,34 @@
     async function askBot() {
       const query = document.getElementById('query').value;
       const resBox = document.getElementById('responseBox');
-      resBox.textContent = 'Loading...';
+      resBox.textContent = '⏳ Loading...';
       try {
         const res = await fetch(`${apiBase}/ask-gemini?q=${encodeURIComponent(query)}`);
         const data = await res.json();
-        resBox.innerHTML = marked.parse(data.answer || data.error || 'No response');
+        // ✅ Gemini already returns HTML formatted (with <strong>, <br>)
+        resBox.innerHTML = data.answer || data.error || '⚠️ No response';
         fetchHistory();
       } catch (err) {
-        resBox.textContent = 'Error fetching response';
+        resBox.textContent = '❌ Error fetching response';
       }
     }
 
     async function translateText() {
-  const text = document.getElementById('responseBox').innerText; 
-  const lang = document.getElementById('lang').value;
-  try {
-    const res = await fetch(`${apiBase}/translate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: text, target_lang: lang })
-    });
-    const data = await res.json();
-    document.getElementById('responseBox').innerHTML = marked.parse(data.translated_text);
-  } catch (err) {
-    alert('Translation failed');
-  }
-}
-
+      const text = document.getElementById('responseBox').innerText;
+      const lang = document.getElementById('lang').value;
+      try {
+        const res = await fetch(`${apiBase}/translate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: text, target_lang: lang })
+        });
+        const data = await res.json();
+        // ✅ Keep translation formatted properly
+        document.getElementById('responseBox').innerHTML = data.translated_text;
+      } catch (err) {
+        alert('Translation failed');
+      }
+    }
 
     async function speakText() {
       const text = document.getElementById('responseBox').innerText;
@@ -120,15 +121,19 @@
     }
 
     async function fetchHistory() {
-      const res = await fetch(`${apiBase}/history`);
-      const data = await res.json();
-      const historyList = document.getElementById('historyList');
-      historyList.innerHTML = '';
-      data.history.forEach(item => {
-        const li = document.createElement('li');
-        li.textContent = item;
-        historyList.appendChild(li);
-      });
+      try {
+        const res = await fetch(`${apiBase}/history`);
+        const data = await res.json();
+        const historyList = document.getElementById('historyList');
+        historyList.innerHTML = '';
+        data.history.forEach(item => {
+          const li = document.createElement('li');
+          li.textContent = item;
+          historyList.appendChild(li);
+        });
+      } catch {
+        document.getElementById('historyList').innerHTML = "<li>⚠️ Could not load history</li>";
+      }
     }
 
     window.onload = fetchHistory;
