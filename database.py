@@ -6,12 +6,10 @@ import os
 
 # Load .env file
 load_dotenv()
-
 # Get the URL
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 # SQLAlchemy setup
 engine = create_engine(DATABASE_URL) # type: ignore
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
 Base = declarative_base()

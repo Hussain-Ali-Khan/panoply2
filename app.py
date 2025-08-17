@@ -5,9 +5,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 import os
-import tempfile
 import requests
 from io import BytesIO
+import traceback
 
 from gemini import generate_answer  # type: ignore
 from database import SessionLocal, engine
@@ -101,25 +101,25 @@ def speak_text(req: SpeakRequest):
         print(f"[EXCEPTION] Error in ElevenLabs API: {e}")
         raise HTTPException(status_code=500, detail=f"Speech synthesis failed: {str(e)}")
 
-
-# ✅ Ask Gemini endpoint
+# ✅ Ask Gemini endpoint (DB is optional now)
 @app.get("/ask-gemini")
 def ask_gemini_endpoint(q: str):
     try:
         answer = generate_answer(q)
     except Exception as e:
+        error_trace = traceback.format_exc()
+        print("🔥 Gemini error:", error_trace)
         raise HTTPException(status_code=500, detail=f"Gemini error: {e}")
 
-    db: Session = SessionLocal()
+    # Try saving to DB (non-blocking)
     try:
+        db: Session = SessionLocal()
         chat = ChatHistory(question=q, answer=answer)
         db.add(chat)
         db.commit()
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=f"DB error: {e}")
-    finally:
         db.close()
+    except Exception as e:
+        print("⚠️ History DB error (non-blocking):", e)
 
     search_history.append(q)
     return {"answer": answer}
@@ -130,9 +130,10 @@ def get_history():
 
 @app.get("/db-history")
 def get_db_history():
-    db: Session = SessionLocal()
     try:
+        db: Session = SessionLocal()
         records = db.query(ChatHistory).order_by(ChatHistory.created_at.desc()).limit(10).all()
+        db.close()
         return [
             {
                 "id": r.id,
@@ -141,14 +142,18 @@ def get_db_history():
                 "timestamp": r.created_at
             } for r in records
         ]
-    finally:
-        db.close()
+    except Exception as e:
+        print("⚠️ DB history fetch failed:", e)
+        return {"history": "Unavailable (DB issue)"}
 
 @app.get("/history-page", response_class=HTMLResponse)
 def history_page(request: Request):
-    db: Session = SessionLocal()
     try:
+        db: Session = SessionLocal()
         records = db.query(ChatHistory).order_by(ChatHistory.created_at.desc()).limit(10).all()
-        return templates.TemplateResponse("history.html", {"request": request, "records": records})
-    finally:
         db.close()
+        return templates.TemplateResponse("history.html", {"request": request, "records": records})
+    except Exception as e:
+        print("⚠️ DB history page failed:", e)
+        # return page but with no records
+        return templates.TemplateResponse("history.html", {"request": request, "records": []})
